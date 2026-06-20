@@ -1,0 +1,237 @@
+{
+  "document": {
+    "ai_rate_surface": 52.0,
+    "level": "中高",
+    "high_risk_ratio": 0.667,
+    "n_total_blocks": 14,
+    "n_scored": 6,
+    "n_skipped": 8,
+    "skipped_breakdown": {
+      "标题": 6,
+      "参考文献": 2
+    }
+  },
+  "paragraphs": [
+    {
+      "index": 1,
+      "char_count": 97,
+      "surface_score": 65,
+      "level": "中高",
+      "needs_semantic_review": true,
+      "hits": [
+        {
+          "code": "S1",
+          "name": "模板开头",
+          "points": 22,
+          "match": "随着人工智能技术的不断发展",
+          "offset": 0
+        },
+        {
+          "code": "S3",
+          "name": "空洞结尾",
+          "points": 18,
+          "match": "具有重要的理论意义和现实价值",
+          "offset": 82
+        },
+        {
+          "code": "S4",
+          "name": "空泛归因",
+          "points": 13,
+          "match": "研究表明",
+          "offset": 60
+        },
+        {
+          "code": "S5",
+          "name": "高频词聚集",
+          "points": 12,
+          "match": "深入探讨/有效提升",
+          "offset": 38
+        }
+      ],
+      "text": "随着人工智能技术的不断发展，教育领域正在经历深刻变革。基于建构主义理论，本文深入探讨了智能辅导系统对学生学习效果的影响。研究表明，智能辅导系统能够有效提升学习效率，具有重要的理论意义和现实价值。"
+    },
+    {
+      "index": 3,
+      "char_count": 87,
+      "surface_score": 52,
+      "level": "中高",
+      "needs_semantic_review": true,
+      "hits": [
+        {
+          "code": "S1",
+          "name": "模板开头",
+          "points": 22,
+          "match": "在教育数字化转型的背景下",
+          "offset": 0
+        },
+        {
+          "code": "S4",
+          "name": "空泛归因",
+          "points": 13,
+          "match": "专家认为",
+          "offset": 60
+        },
+        {
+          "code": "S5",
+          "name": "高频词聚集",
+          "points": 17,
+          "match": "赋能/推动教育高质量发展/重要抓手",
+          "offset": 67
+        }
+      ],
+      "text": "在教育数字化转型的背景下，如何提升课堂教学质量成为重要议题。为了解决传统教学中存在的问题，本文围绕智能辅导系统展开研究。专家认为，技术赋能教育是推动教育高质量发展的重要抓手。"
+    },
+    {
+      "index": 5,
+      "char_count": 103,
+      "surface_score": 82,
+      "level": "高",
+      "needs_semantic_review": true,
+      "hits": [
+        {
+          "code": "S2",
+          "name": "排比骨架",
+          "points": 20,
+          "match": "首先+其次",
+          "offset": 60
+        },
+        {
+          "code": "S3",
+          "name": "空洞结尾",
+          "points": 18,
+          "match": "取得了丰富成果",
+          "offset": 45
+        },
+        {
+          "code": "S3",
+          "name": "空洞结尾",
+          "points": 18,
+          "match": "但仍存在不足",
+          "offset": 53
+        },
+        {
+          "code": "S4",
+          "name": "空泛归因",
+          "points": 13,
+          "match": "国内外学者",
+          "offset": 0
+        },
+        {
+          "code": "S4",
+          "name": "空泛归因",
+          "points": 13,
+          "match": "已有研究",
+          "offset": 63
+        }
+      ],
+      "text": "国内外学者围绕智能辅导系统开展了大量研究，主要集中在系统设计、应用效果和影响机制三个方面，取得了丰富成果，但仍存在不足。首先，已有研究多关注技术实现；其次，对学习者个体差异关注不够；再次，长期效果缺乏追踪。"
+    },
+    {
+      "index": 7,
+      "char_count": 67,
+      "surface_score": 0,
+      "level": "低",
+      "needs_semantic_review": false,
+      "hits": [],
+      "text": "本文采用准实验设计，选取某中学两个平行班级作为研究对象，实验组使用智能辅导系统，对照组采用常规教学。数据通过前后测问卷与课堂观察收集。"
+    },
+    {
+      "index": 9,
+      "char_count": 76,
+      "surface_score": 36,
+      "level": "中",
+      "needs_semantic_review": true,
+      "hits": [
+        {
+          "code": "S6",
+          "name": "不安全数据语",
+          "points": 36,
+          "match": "充分证明 / 5 次、92.3%、200 ms",
+          "offset": 39
+        }
+      ],
+      "text": "经过 5 次实验，系统平均准确率达到 92.3%，响应时间低于 200 ms，充分证明了方法的有效性。实验组成绩显著提高，验证了智能辅导系统的积极作用。"
+    },
+    {
+      "index": 11,
+      "char_count": 41,
+      "surface_score": 60,
+      "level": "中高",
+      "needs_semantic_review": true,
+      "hits": [
+        {
+          "code": "S3",
+          "name": "空洞结尾",
+          "points": 18,
+          "match": "综上所述",
+          "offset": 0
+        },
+        {
+          "code": "S3",
+          "name": "空洞结尾",
+          "points": 18,
+          "match": "具有重要的理论意义和实践价值",
+          "offset": 9
+        },
+        {
+          "code": "S3",
+          "name": "空洞结尾",
+          "points": 18,
+          "match": "提供了新思路",
+          "offset": 29
+        },
+        {
+          "code": "S3",
+          "name": "空洞结尾",
+          "points": 6,
+          "match": "前景广阔",
+          "offset": 36
+        }
+      ],
+      "text": "综上所述，本文研究具有重要的理论意义和实践价值，为相关领域提供了新思路，前景广阔。"
+    }
+  ],
+  "skipped": [
+    {
+      "index": 0,
+      "reason": "标题",
+      "preview": "摘要"
+    },
+    {
+      "index": 2,
+      "reason": "标题",
+      "preview": "1 引言"
+    },
+    {
+      "index": 4,
+      "reason": "标题",
+      "preview": "2 文献综述"
+    },
+    {
+      "index": 6,
+      "reason": "标题",
+      "preview": "3 研究方法"
+    },
+    {
+      "index": 8,
+      "reason": "标题",
+      "preview": "4 结果"
+    },
+    {
+      "index": 10,
+      "reason": "标题",
+      "preview": "5 结论"
+    },
+    {
+      "index": 12,
+      "reason": "参考文献",
+      "preview": "参考文献"
+    },
+    {
+      "index": 13,
+      "reason": "参考文献",
+      "preview": "[1] 张三. 智能教育研究[J]. 教育技术, 2020, 12(3): 1-"
+    }
+  ],
+  "input": "samples\\demo_before.txt"
+}

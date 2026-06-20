@@ -1,0 +1,4 @@
+interface:
+  display_name: "中文论文去AI感"
+  short_description: "识别并改写中文论文、报告和学术文本中的AI写作痕迹。"
+  default_prompt: "请判断这段中文论文是否有AI痕迹，并在不改变事实、数据和引用的前提下改写得更自然。"

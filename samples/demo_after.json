@@ -1,0 +1,113 @@
+{
+  "document": {
+    "ai_rate_surface": 0.0,
+    "level": "低",
+    "high_risk_ratio": 0.0,
+    "n_total_blocks": 14,
+    "n_scored": 6,
+    "n_skipped": 8,
+    "skipped_breakdown": {
+      "标题": 6,
+      "参考文献": 2
+    }
+  },
+  "paragraphs": [
+    {
+      "index": 1,
+      "char_count": 127,
+      "surface_score": 0,
+      "level": "低",
+      "needs_semantic_review": false,
+      "hits": [],
+      "text": "智能辅导系统进入课堂后，学生的学习方式是否真的改变，并不容易直接判断。本文从建构主义的视角出发，关注一个具体问题：当学生借助系统获得即时反馈时，他们的学习过程发生了哪些变化。研究的着眼点是把\"系统使用\"和\"学习过程\"分开来看，而不是笼统地说技术有没有用。"
+    },
+    {
+      "index": 3,
+      "char_count": 123,
+      "surface_score": 0,
+      "level": "低",
+      "needs_semantic_review": false,
+      "hits": [],
+      "text": "课堂教学质量的提升，长期受制于教师难以同时照顾不同进度学生这一现实约束。智能辅导系统之所以受关注，是因为它可能分担其中个别化反馈的负担。本文不去回答技术能否改变教育这种大问题，只看一件具体的事：这种个别化反馈在一个真实班级里到底能落实到什么程度。"
+    },
+    {
+      "index": 5,
+      "char_count": 118,
+      "surface_score": 0,
+      "level": "低",
+      "needs_semantic_review": false,
+      "hits": [],
+      "text": "关于智能辅导系统，已有的讨论大多围绕系统怎么设计、用起来效果如何展开，但有一个分歧一直没解决：系统的作用究竟来自技术本身，还是来自它如何适应不同学生。本文更关心后一种解释，因为前一类工作虽然不少，却较少追踪同一批学生在较长时间里的变化。"
+    },
+    {
+      "index": 7,
+      "char_count": 67,
+      "surface_score": 0,
+      "level": "低",
+      "needs_semantic_review": false,
+      "hits": [],
+      "text": "本文采用准实验设计，选取某中学两个平行班级作为研究对象，实验组使用智能辅导系统，对照组采用常规教学。数据通过前后测问卷与课堂观察收集。"
+    },
+    {
+      "index": 9,
+      "char_count": 116,
+      "surface_score": 0,
+      "level": "低",
+      "needs_semantic_review": false,
+      "hits": [],
+      "text": "在目前的几轮测试中，系统的识别准确率约为 92.3%，响应时间大致在 200 ms 以内，这说明整个流程已经能够稳定跑通。实验组的成绩相比对照组有所提高；不过这一差异是否稳健，还需要统一测试集和重复次数之后再判断，暂不作为因果结论。"
+    },
+    {
+      "index": 11,
+      "char_count": 99,
+      "surface_score": 0,
+      "level": "低",
+      "needs_semantic_review": false,
+      "hits": [],
+      "text": "本文的主要工作，是在一个真实班级里把\"系统使用\"和\"学习过程\"分开观察，说明个别化反馈在其中可能起到的作用。这一判断受限于单一班级的样本，能否推广到其他学段或学科，还要看反馈机制和学生基础是否相近。"
+    }
+  ],
+  "skipped": [
+    {
+      "index": 0,
+      "reason": "标题",
+      "preview": "摘要"
+    },
+    {
+      "index": 2,
+      "reason": "标题",
+      "preview": "1 引言"
+    },
+    {
+      "index": 4,
+      "reason": "标题",
+      "preview": "2 文献综述"
+    },
+    {
+      "index": 6,
+      "reason": "标题",
+      "preview": "3 研究方法"
+    },
+    {
+      "index": 8,
+      "reason": "标题",
+      "preview": "4 结果"
+    },
+    {
+      "index": 10,
+      "reason": "标题",
+      "preview": "5 结论"
+    },
+    {
+      "index": 12,
+      "reason": "参考文献",
+      "preview": "参考文献"
+    },
+    {
+      "index": 13,
+      "reason": "参考文献",
+      "preview": "[1] 张三. 智能教育研究[J]. 教育技术, 2020, 12(3): 1-"
+    }
+  ],
+  "input": "samples\\demo_after.txt"
+}
