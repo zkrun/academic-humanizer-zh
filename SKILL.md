@@ -39,42 +39,52 @@ The score is an **explainable AI-trace risk rate**, not any commercial detector'
 ## Tooling
 
 - **`scripts/score.py`** — deterministic surface scorer. Reads `.txt / .md / .docx`, skips references/TOC/tables/formulas/captions/headings and fenced code blocks (```/~~~), scores patterns S1–S7, prints a summary and (with `--json`) writes full results.
-  - Run: `python scripts/score.py <输入文件> --json <输出.json>`；改写后用 `--compare 降前.json` 打印对比，再加 `--report <对比报告.md>` 直接生成降前/降后对照文件（总览 + 逐段评分 + 改动段原文/改后对照）。
+  - Run: `python scripts/score.py <输入文件> --json <输出.json>`；改写后用 `--compare 降前.json` 打印对比，再加 `--report <对比报告.md>` 生成降前/降后对照文件；可选 `--semantic <语义.json>`（你判读的 C1–C3 分 + 证据 + 综合判断）把**语义评分和综合分一并写进报告**，两轨并列。
   - JSON fields: `document.ai_rate_surface` (字数加权), `document.high_risk_ratio`, `document.skipped_breakdown`; per-paragraph `index / char_count / surface_score / level / needs_semantic_review / hits[] / text`. Each hit carries `code / name / points / match / offset`.
 - **`reference/rubric.md`** — the single source of truth: weights, the six surface items S1–S6, the three semantic items C1–C3, and the four risk bands. Read it before scoring so your semantic judgments match the rubric.
 
 ## Scoring Model
 
-Each paragraph's AI率 = **surface (S1–S6, from the script)** + **semantic (C1–C3, added by you)**, capped at 100.
+分两轨，**不要合并成一个数**——这是刻意的：
 
-Surface items (script): S1 模板开头 · S2 排比骨架 · S3 空洞结尾 · S4 空泛归因 · S5 高频词聚集 · S6 不安全数据语 · S7 升华对比框 — detailed below under AI-Trace Patterns.
+- **表层分（S1–S7，脚本算）**：确定性、可复现，每分可追溯到一条词表痕迹，是**客观下限**。
+- **语义分（C1–C3，你判）**：模型判读，**不保证可复现**（换模型 / 换一次跑会浮动）；它能抓表层看不到的东西（节奏、口吻、空转推理），但**每一分必须引原文证据**，否则不计——语义分的可信度来自证据，不来自可复现。
 
-Semantic items (add only to paragraphs the script marks `needs_semantic_review`, plus spot-check a few low-scoring ones so you don't miss clean-keyword-but-templated prose):
+**最终给两个结论，并列、不糅在一起：**
 
-- **C1 节奏过平滑 (0–20)** — every sentence long and balanced, every paragraph ends in a neat summary, no pause/insertion/turn.
-- **C2 推理扁平 (0–15)** — no exception, contrast, boundary, methodological reason, or author judgment; reads like a textbook abstract.
-- **C3 口吻错位 (0–10)** — discipline voice flattened into generic academic polish.
+- **表层分** = 脚本的 `ai_rate_surface`（直接用）。
+- **综合判断** = 表层 + 语义后的整体档位（低 / 中 / 中高 / 高），**允许语义压倒表层**。两者背离时（典型：表层很低但满篇排比 / 口号），**以语义为准并明确标注"表层低、综合高"**——这种背离本身就是"会规避词表的 AI"的信号。
 
-Always state the reason when adding semantic points; never give a bare number. Bands: 0–25 低 / 26–50 中 / 51–75 中高 / 76–100 高.
+Surface items (script): S1 模板开头 · S2 排比骨架 · S3 空洞结尾 · S4 空泛归因 · S5 高频词聚集 · S6 不安全数据语 · S7 升华对比框 · **S8 排比密度**（≥4 同构顿号列）· **S9 枚举骨架**（文档级：跨段"第一…第六/首先…最后"march）— detailed below under AI-Trace Patterns. 脚本还输出 `document.rhythm`（句长均值 + 变异系数 CV，越低越偏 AI）作为 C1 节奏的客观参考线，不计分。
+
+> S8 / S9 是专为政论 / 宣传体补的——这类文本的 AI 味在四字排比和跨段枚举骨架，能被这两项确定性地抓到，从而**降低对语义层的依赖**；但引用反例、空转口号、推理扁平等仍只能靠 C1–C3 判。
+
+Semantic items — 判 flagged 段落，**同时整篇通读**：节奏 / 口吻往往是文档级特征、脚本完全看不到，所以一篇表层 ~0% 的文档仍可能整体很 AI（**典型：政论 / 宣传体，满篇四字排比和口号，却踩不中任何词表**）。整体读着模板化时，综合判断就要反映出来，哪怕表层很低。**每个语义扣分都要引具体证据**（哪句排比、哪个口号、哪处无转折）：
+
+- **C1 节奏过平滑 (0–20)** — 句句长而均衡、每段工整收尾、四字排比堆砌、毫无停顿 / 插入 / 转折。
+- **C2 推理扁平 (0–15)** — 无例外、对比、边界、方法理由或作者判断；纯断言或纯抒情。
+- **C3 口吻错位 (0–10)** — 学科 / 文体口吻被磨成通用腔；口号、套话密集。
+
+绝不只给数字。Bands: 0–25 低 / 26–50 中 / 51–75 中高 / 76–100 高.
 
 ## Workflow
 
 ### Single pasted paragraph
 
 1. Score inline against the rubric (S1–S6 + C1–C3); running the script is optional for one paragraph.
-2. State the AI率 and level, and name the specific patterns — not a vague "AI-like" label.
+2. State **both** the 表层分 (script) and the 综合判断 (含语义), and name the specific patterns — not a vague "AI-like" label.
 3. Give a revised version, then re-state the new (lower) risk.
 4. Briefly explain what changed: structure, claim strength, rhythm, data boundary, or reasoning flow.
 
 ### Full document
 
 1. Run `python scripts/score.py <file> --json <out.json>` and read the JSON.
-2. For each paragraph with `needs_semantic_review`, add C1–C3 with reasons → final paragraph AI率.
-3. Produce the **检测报告** (format below): document AI率 + high-risk ratio + per-paragraph table + the worst sentences highlighted.
+2. Add C1–C3 with **quoted evidence** to flagged paragraphs, **and read the whole document for rhythm / voice** — a low 表层分 does not mean clean (政论 / 宣传体 is the chief example: surface ~0% yet heavily templated). Derive the **综合判断**.
+3. Produce the **检测报告** (format below): **表层分 + 综合判断（若背离则标注"表层低 / 综合高"）** + per-paragraph table + worst sentences highlighted.
 4. **降AI**: rewrite high-risk paragraphs (中高/高 first), using the Rewrite Methods. Preserve data/citations/methods; keep methods/results numerically intact; do not touch the blocks the script skipped.
 5. Export a **new file** — never overwrite the original.
-6. Re-run `python scripts/score.py <新文件> --compare 降前.json --report <对比报告.md>` — this prints the before/after table **and writes a comparison report file** (总览 + 逐段评分 + 改动段原文/改后对照).
-7. Deliver **two files** — the rewritten document and the comparison report — then summarize: before/after document AI率, preserved content (citations/data/methods), residual risk.
+6. 把你的语义判读写成 **`语义.json`**（每项 `C1/C2/C3: [分, 证据]` + 降前/降后 `composite` + `note`），再跑 `python scripts/score.py <新文件> --compare 降前.json --semantic 语义.json --report <对比报告.md>` —— 报告会**两轨并列**：表层（脚本、可复现）+ 语义评分（C1–C3 带证据）+ 综合判断（降前 / 降后），外加逐段对照。**别只写表层进报告，用户要看到语义的分量。**
+7. Deliver **two files** — the rewritten document and the comparison report — then summarize: before/after **表层分 + 综合判断**, preserved content (citations/data/methods), residual risk. 若表层分本就低、问题主要在语义（节奏 / 口号），要明说"降的主要是读感，表层数字本就不高"，不要让对方误读那个小降幅。
 
 > Do not game the score by only deleting trigger words. A lower number must come from real structural and reasoning changes; otherwise the text reads as a new anti-AI template. The Final Self-Check enforces this.
 
@@ -364,14 +374,14 @@ High:
 For a single pasted paragraph:
 
 ```markdown
-AI率：72%（中高）
+表层分 72%（中高）｜综合判断 中高
 
-触发：S1 模板开头、S4 空泛归因、C2 推理扁平
+触发：S1 模板开头、S4 空泛归因；语义 C1 节奏过平滑（证据：每段都以"由此可见…"工整收尾）
 主要问题：
 1. ...
 2. ...
 
-改后（约 20%，低）：
+改后（表层约 20%，综合 低）：
 > ...
 
 变化：把"研究表明"落回本文自己的分析；拆掉开头的"随着…发展"模板。
@@ -382,17 +392,20 @@ For a full-document **检测报告**:
 ```markdown
 ## 检测报告
 
-文档 AI率：50.7%（中高）｜高风险段占比：66.7%｜打分 6 段 / 跳过 8 段（标题6、参考文献2）
+表层分：1.7%（低）　|　综合判断：中高（⚠ 表层低 / 综合高——满篇四字排比与口号，规避了词表）
+打分 8 段 / 跳过 3 段（标题3）
 
-| 段落 | AI率 | 等级 | 触发 | 说明 |
+| 段落 | 表层 | 综合 | 触发（表层 / 语义，含证据） | 说明 |
 |---|---|---|---|---|
-| 块5 | 82% | 高 | S2 S3 S4 | 排比骨架 + 综述套话 + 空泛归因 |
-| 块1 | 65% | 中高 | S1 S3 S4 S5 | 模板开头 + 空洞结尾 + 高频词 |
+| 块3 | 8% | 中高 | S7；C1 节奏 + C3 口号 | 四字排比 + 口号"最普惠的民生福祉" |
+| 块5 | 0% | 中高 | C1 节奏 | "节约水电…垃圾分类…绿色出行…"机械排比 |
 | … | | | | |
 
 最该改的句子：
-- 块5：「国内外学者……取得了丰富成果，但仍存在不足。」
+- 块9：「敬畏自然、尊重自然、保护自然……天更蓝、山更绿、水更清……」
 ```
+
+> 表层与综合**并列呈现**；脚本只给得出"表层"列，"综合"列与背离标注由你（依据 C1–C3 证据）判定。两者一致时正常报，背离时务必点明，别让读者只看表层数字。
 
 For a full-document **降AI报告**:
 
@@ -413,7 +426,7 @@ For a full-document **降AI报告**:
 - 剩余风险：……
 ```
 
-> 这份 **降AI报告由 `score.py --compare 降前.json --report <文件.md>` 直接落地成文件**（含总览、逐段评分、改动段「原文 ↔ 改后」对照）；其中"主要处理 / 受保护内容 / 剩余风险"等判断由你补充。
+> 这份 **降AI报告由 `score.py --compare 降前.json --semantic 语义.json --report <文件.md>` 直接落地成文件**：含总览（**表层 + 综合判断**）、**语义评分表（C1–C3 带证据、降前/降后）**、逐段表层对比、改动段「原文 ↔ 改后」对照。`语义.json` 由你判读提供——不传则报告只有表层那一轨。
 
 ## Examples
 
@@ -469,4 +482,4 @@ Before returning revised text, check:
 - Is the paragraph still academic, not casual chat?
 - Did the re-scored AI率 actually drop — **and is the drop from real structural/reasoning changes, not just deleted trigger words**?
 - After rewriting, re-run `score.py`; if a paragraph is still 中高/高, revise it again rather than reporting it as done.
-- **改写后没有任何一段分数比改写前更高**：若某段 AI率不降反升（哪怕仍在「低」档），说明改写顺手引入了新痕迹——常见于写出「已有研究」「研究表明」「不是…而是…」这类被自己规则盯上的词。回改那一段，不要交付一个"越降越高"的结果。
+- **被改写的段落分数必须真的下降，且没有任何一段比改前更高**：若某段改了却分数不变甚至升高，多半是把一个触发词换成了另一个同类触发词（如「第一/第二/第三」换成「一是/二是」都算 S2 排比），或顺手写进「已有研究」「研究表明」「不是…而是…」等被规则盯上的词。回改那一段，别交付"白改"或"越降越高"的结果。

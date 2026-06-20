@@ -136,6 +136,11 @@ S7_PATTERNS = [re.compile(p) for p in [
     r"与其[^。！？\n]{1,25}?不如",
 ]]
 
+# S8 排比密度（软信号）：≥4 个同构短项的顿号长列（如"清新的空气、清澈的河流、葱郁的山林、多样的生灵"），
+# 每个合格列 +8、封顶 16。要求"同构"（等长 / 共首字 / 共尾字）以压低对正当列举的误报。
+S8_PER, S8_CAP = 8, 16
+S8_RUN = re.compile(r"[^，。；！？、\s]{2,10}(?:、[^，。；！？、\s]{2,10}){3,}")
+
 
 # ==========================================================================
 # 文档读取
@@ -387,6 +392,20 @@ def score_paragraph(text):
         hits.append(_hit("S7", "升华对比框", add, frag, off))
         s7 += add
 
+    # S8 排比密度（≥4 个同构短项的顿号长列）
+    s8 = 0
+    for m in S8_RUN.finditer(text):
+        items = m.group(0).split("、")
+        if len(items) < 4 or s8 >= S8_CAP:
+            continue
+        same_len = len(set(len(x) for x in items)) == 1
+        share_first = Counter(x[0] for x in items).most_common(1)[0][1] >= len(items) - 1
+        share_last = Counter(x[-1] for x in items).most_common(1)[0][1] >= len(items) - 1
+        if same_len or share_first or share_last:
+            add = min(S8_PER, S8_CAP - s8)
+            hits.append(_hit("S8", "排比密度", add, m.group(0)[:24], m.start()))
+            s8 += add
+
     score = min(100, sum(h["points"] for h in hits))
     return score, hits
 
@@ -404,6 +423,50 @@ def level_of(score):
 # ==========================================================================
 # 分析与聚合
 # ==========================================================================
+
+S9_OPEN = re.compile(
+    r"^[\s　]*(第[一二三四五六七八九十\d]+[，、,．.、 ]?|首先|其次|再次|复次|又次|此外|最后|最终|"
+    r"一是|二是|三是|四是|五是|一方面|另一方面|其一|其二|其三)")
+S9_POINTS, S9_MIN_RUN = 10, 4
+
+
+def _apply_doc_skeleton(paragraphs):
+    """S9 文档级枚举骨架：连续 ≥4 段以枚举连接词开头（跨段的"第一…第六/首先…最后"march）→ 每段 +10。
+    脚本原本逐段打分、看不到这种跨段结构，这里补一个文档级 pass。"""
+    flags = [bool(S9_OPEN.match(p["text"])) for p in paragraphs]
+    i = 0
+    while i < len(flags):
+        if not flags[i]:
+            i += 1
+            continue
+        j = i
+        while j < len(flags) and flags[j]:
+            j += 1
+        if j - i >= S9_MIN_RUN:
+            for k in range(i, j):
+                p = paragraphs[k]
+                p["hits"].append(_hit("S9", "枚举骨架", S9_POINTS, p["text"][:6], 0))
+                p["surface_score"] = min(100, p["surface_score"] + S9_POINTS)
+                p["level"] = level_of(p["surface_score"])
+                p["needs_semantic_review"] = p["surface_score"] >= 26
+        i = j
+
+
+def rhythm_stats(paragraphs):
+    """句长统计（参考线，不计分）：均值 + 变异系数 CV。CV 越低=句子越齐，节奏越偏 AI。"""
+    lens = []
+    for p in paragraphs:
+        for s in re.split(r"[。！？!?；;]", p["text"]):
+            s = s.strip()
+            if len(s) >= 4:
+                lens.append(len(s))
+    if len(lens) < 5:
+        return {"n_sentences": len(lens), "mean_len": 0.0, "cv": None}
+    mean = sum(lens) / len(lens)
+    sd = (sum((x - mean) ** 2 for x in lens) / len(lens)) ** 0.5
+    return {"n_sentences": len(lens), "mean_len": round(mean, 1),
+            "cv": round(sd / mean, 2) if mean else None}
+
 
 def analyze(blocks, min_len):
     paragraphs, skipped = [], []
@@ -432,6 +495,8 @@ def analyze(blocks, min_len):
             "text": text,
         })
 
+    _apply_doc_skeleton(paragraphs)  # S9 文档级枚举骨架（在聚合之前补分）
+
     total_chars = sum(p["char_count"] for p in paragraphs)
     ai_rate = (round(sum(p["surface_score"] * p["char_count"] for p in paragraphs) / total_chars, 1)
                if total_chars else 0.0)
@@ -447,6 +512,7 @@ def analyze(blocks, min_len):
             "n_scored": len(paragraphs),
             "n_skipped": len(skipped),
             "skipped_breakdown": dict(Counter(s["reason"] for s in skipped)),
+            "rhythm": rhythm_stats(paragraphs),
         },
         "paragraphs": paragraphs,
         "skipped": skipped,
@@ -467,6 +533,9 @@ def format_summary(result, top):
     if d["skipped_breakdown"]:
         bd = "、".join(f"{k}{v}" for k, v in d["skipped_breakdown"].items())
         lines.append(f"跳过明细：{bd}")
+    r = d.get("rhythm")
+    if r and r.get("cv") is not None:
+        lines.append(f"句长参考：均值 {r['mean_len']} 字、变异系数 CV={r['cv']}（越低越齐、越偏 AI；仅参考不计分）")
     lines.append("-" * 60)
 
     ranked = sorted(result["paragraphs"], key=lambda p: p["surface_score"], reverse=True)
@@ -510,22 +579,57 @@ def format_compare(before, after, top):
     return "\n".join(lines)
 
 
-def format_report(before, after):
-    """生成 Markdown 降前/降后对比报告：总览 + 逐段评分 + 改动段原文/改后对照。"""
+def format_report(before, after, semantic=None):
+    """生成 Markdown 降前/降后对比报告。
+    表层（脚本、可复现）与语义（semantic：Claude 判读的 C1-C3 分 + 证据 + 综合判断）双轨并列、不合并。
+    semantic 结构示例：
+      {"note": "...", "before": {"C1":[18,"证据"],"C2":[8,"证据"],"C3":[7,"证据"],"composite":"中高"},
+       "after": {"C1":[4,"证据"],"C2":[4,"证据"],"C3":[2,"证据"],"composite":"低"}}
+    """
     bd, ad = before["document"], after["document"]
     bp, ap_ = before["paragraphs"], after["paragraphs"]
     n = min(len(bp), len(ap_))
     changed = [i for i in range(n) if bp[i]["text"] != ap_[i]["text"]]
+
+    def pts(x):
+        return "—" if x is None else str(x)
+
     L = ["# 降 AI 对比报告\n",
-         "> 由 academic-humanizer-zh / score.py 生成。表层分为脚本计算；语义层（节奏/推理/口吻）需人工判读。\n",
-         "## 一、总览\n",
-         f"- **文档表层 AI 率：降前 {bd['ai_rate_surface']}%（{bd['level']}）"
-         f" → 降后 {ad['ai_rate_surface']}%（{ad['level']}）**",
-         f"- 高风险段占比：{bd['high_risk_ratio'] * 100:.0f}% → {ad['high_risk_ratio'] * 100:.0f}%",
-         f"- 参与打分 {bd['n_scored']} 段；本次改动 {len(changed)} 段"]
+         "> 由 academic-humanizer-zh 生成。**表层分**由 score.py 确定性计算、可复现；"
+         "**语义分 / 综合判断**由 Claude 判读、不保证可复现，可信度来自所附证据。两轨分开列、刻意不合并成一个数。\n",
+         "## 总览\n",
+         f"- **表层 AI 率（脚本，可复现）：降前 {bd['ai_rate_surface']}%（{bd['level']}）"
+         f" → 降后 {ad['ai_rate_surface']}%（{ad['level']}）**"]
+    if semantic:
+        sb = semantic.get("before", {}).get("composite", "—")
+        sa = semantic.get("after", {}).get("composite", "—")
+        line = f"- **综合判断（表层 + 语义，允许语义压倒表层）：降前 {sb} → 降后 {sa}**"
+        if semantic.get("note"):
+            line += f"　（{semantic['note']}）"
+        L.append(line)
+    L.append(f"- 高风险段占比（表层）：{bd['high_risk_ratio'] * 100:.0f}% → {ad['high_risk_ratio'] * 100:.0f}%")
+    L.append(f"- 参与打分 {bd['n_scored']} 段；本次改动 {len(changed)} 段")
     if len(bp) != len(ap_):
         L.append(f"- ⚠ 两版段落数不一致（降前 {len(bp)} / 降后 {len(ap_)}），按顺序对齐前 {n} 段")
-    L.append("\n## 二、逐段评分对比（仅列改动段）\n")
+
+    if semantic:
+        sbefore, safter = semantic.get("before", {}), semantic.get("after", {})
+        names = {"C1": "C1 节奏过平滑 (0–20)", "C2": "C2 推理扁平 (0–15)", "C3": "C3 口吻错位 (0–10)"}
+        L.append("\n## 语义评分（C1–C3，Claude 判读 · 每项附证据）\n")
+        L.append("> 语义层抓的是表层词表看不到的东西（节奏 / 推理 / 口吻）；不可复现，故每项都给原文证据。\n")
+        L.append("| 维度 | 降前 | 降后 | 证据（取自降前文本） |")
+        L.append("|---|---|---|---|")
+        for code in ("C1", "C2", "C3"):
+            b = sbefore.get(code, [None, ""])
+            a = safter.get(code, [None, ""])
+            b = b if isinstance(b, (list, tuple)) else [b, ""]
+            a = a if isinstance(a, (list, tuple)) else [a, ""]
+            ev = (b[1] if len(b) > 1 else "") or ""
+            L.append(f"| {names[code]} | {pts(b[0])} | {pts(a[0])} | {ev} |")
+        L.append(f"| **综合判断** | **{sbefore.get('composite', '—')}** | **{safter.get('composite', '—')}** | "
+                 f"表层 {bd['ai_rate_surface']}% / {ad['ai_rate_surface']}% 之上叠加上列语义 |")
+
+    L.append("\n## 逐段表层对比（脚本，仅列改动段）\n")
     L.append("> 「变化」列：表层未变 = 这段改的是节奏 / 措辞等语义层，不在 S1–S7 扫描范围内。\n")
     L.append("| 段 | 降前 | 降后 | 变化 | 该段开头 |")
     L.append("|---|---|---|---|---|")
@@ -534,7 +638,7 @@ def format_report(before, after):
         diff = bs - as_
         mark = f"↓{diff}" if diff > 0 else ("节奏改写·表层未变" if diff == 0 else f"⚠ 升{-diff}")
         L.append(f"| 第{i + 1}段 | {bs}% | {as_}% | {mark} | {ap_[i]['text'][:14]}… |")
-    L.append("\n## 三、全文逐段对照（原文 → 改后）\n")
+    L.append("\n## 全文逐段对照（原文 → 改后）\n")
     for i in changed:
         L.append(f"### 第 {i + 1} 段　{bp[i]['surface_score']}% → {ap_[i]['surface_score']}%\n")
         L.append(f"**原文：**{bp[i]['text']}\n")
@@ -549,6 +653,7 @@ def main():
     ap.add_argument("--json", dest="json_out", help="写出完整 JSON 到该路径")
     ap.add_argument("--compare", dest="compare", help="对比基准 JSON（降前结果）；给出后打印降前/降后对比表")
     ap.add_argument("--report", dest="report", help="与 --compare 配合，把降前/降后逐段对照写成 Markdown 报告文件")
+    ap.add_argument("--semantic", dest="semantic", help="Claude 判读的语义评分 JSON（C1-C3 分+证据+综合判断），写进报告的语义/综合部分")
     ap.add_argument("--min-len", type=int, default=15, help="低于该字数的段落不打分（默认 15）")
     ap.add_argument("--top", type=int, default=8, help="摘要/对比里展示的段落数量（默认 8）")
     ap.add_argument("--quiet", action="store_true", help="不打印摘要（仅写 JSON）")
@@ -575,7 +680,13 @@ def main():
     if args.report:
         if not before:
             sys.exit("--report 需要同时指定 --compare <降前.json>")
-        Path(args.report).write_text(format_report(before, result), encoding="utf-8")
+        sem = None
+        if args.semantic:
+            spath = Path(args.semantic)
+            if not spath.exists():
+                sys.exit(f"语义 JSON 不存在：{spath}")
+            sem = json.loads(spath.read_text(encoding="utf-8"))
+        Path(args.report).write_text(format_report(before, result, sem), encoding="utf-8")
 
     if not args.quiet:
         print(format_compare(before, result, args.top) if before else format_summary(result, args.top))
