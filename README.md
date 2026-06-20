@@ -172,9 +172,9 @@ python scripts/score.py 论文.docx --json 结果.json
 # 仅写 JSON 不打印
 python scripts/score.py 论文.md --json 结果.json --quiet
 
-# 改写后做降前/降后对比：先给原文打分存 JSON，改写后用 --compare
+# 改写后做降前/降后对比，并把逐段对照写成报告文件
 python scripts/score.py 原文.docx   --json 降前.json --quiet
-python scripts/score.py 改写稿.docx --compare 降前.json
+python scripts/score.py 改写稿.docx --compare 降前.json --report 对比报告.md
 ```
 
 可选参数：
@@ -183,6 +183,7 @@ python scripts/score.py 改写稿.docx --compare 降前.json
 |---|---|---|
 | `--json <路径>` | 写出完整 JSON 结果 | 不写 |
 | `--compare <降前.json>` | 打印降前/降后对比表（按正文段落顺序对齐） | 不对比 |
+| `--report <报告.md>` | 与 `--compare` 配合，把降前/降后逐段对照写成 Markdown 报告文件 | 不生成 |
 | `--min-len <N>` | 低于该字数的段落不打分 | 15 |
 | `--top <N>` | 摘要里展示的高风险段数量 | 8 |
 | `--quiet` | 不打印摘要（仅写 JSON） | 关 |
@@ -254,7 +255,7 @@ python scripts/score.py 改写稿.docx --compare 降前.json
 - 工程 / 计算机：保留参数、数据集、指标，区分「设计设定」与「实测性能」
 - 政策 / 管理：保留制度口吻，去口号
 
-**文件格式**：`.txt` / `.md` / `.docx`（`.pdf` 暂建议先转文本）
+**文件格式**：`.txt` / `.md` / `.docx`（旧版 `.doc` 请先在 Word 里另存为 `.docx`；`.pdf` 暂建议先转文本）。脚本遇到 `.doc`/`.pdf` 等二进制格式会**直接报错提示**，不会硬读成乱码给出错误分数。
 
 **自动跳过、不打分的内容**：参考文献区、代码围栏、目录、表格、公式、图表标题、各级标题、过短段落。
 
@@ -307,7 +308,7 @@ python scripts/score.py 改写稿.docx --compare 降前.json
 
 - [x] Markdown 代码围栏识别 + 修正「公式」误判
 - [x] S7 升华对比框检测（不是…而是… 等固定框）
-- [x] `score.py --compare 降前.json` 直接打印降前/降后对比表
+- [x] `score.py --compare` 打印降前/降后对比，`--report` 直接生成逐段对照报告文件
 - [ ] 自由排比三连（可X、可Y、可Z）检测——保守启发式，待校准
 - [ ] 用真实论文样本校准权重，降低误报
 - [ ] `.pdf` 文本提取支持

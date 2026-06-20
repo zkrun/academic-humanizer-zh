@@ -141,10 +141,21 @@ S7_PATTERNS = [re.compile(p) for p in [
 # 文档读取
 # ==========================================================================
 
+# 已知的二进制/非纯文本格式：明确拒绝，避免被当文本硬读成乱码、给出无意义的分数
+BINARY_EXT = {
+    ".doc": "旧版 Word（.doc）", ".pdf": "PDF", ".rtf": "RTF", ".wps": "WPS（.wps）",
+    ".ppt": "PowerPoint", ".pptx": "PowerPoint", ".xls": "Excel", ".xlsx": "Excel",
+    ".odt": "OpenDocument（.odt）",
+}
+
+
 def read_blocks(path: Path):
     """返回 [{'text':..., 'style':...}]，按文档顺序。"""
-    if path.suffix.lower() == ".docx":
+    ext = path.suffix.lower()
+    if ext == ".docx":
         return _read_docx(path)
+    if ext in BINARY_EXT:
+        sys.exit(f"不支持 {BINARY_EXT[ext]} 格式：请在 Word/WPS 里「另存为」.docx，或导出为 .txt 后再运行。")
     return _read_text(path)
 
 
@@ -166,7 +177,18 @@ def _read_docx(path: Path):
 def _read_text(path: Path):
     """按 Markdown 结构分段：识别 ``` / ~~~ 代码围栏（整体作为一个"代码块"，后续会被跳过），
     其余按空行分段；围栏边界同时切断段落，避免示例与紧邻的说明文字粘连。"""
-    raw = path.read_text(encoding="utf-8-sig", errors="replace")
+    data = path.read_bytes()
+    if b"\x00" in data[:8192]:            # 出现 NUL 字节，几乎可断定是二进制文件
+        sys.exit(f"“{path.name}” 看起来是二进制文件、不是纯文本；若是 Word/PDF，请先另存为 .docx 或导出为 .txt。")
+    raw = None
+    for enc in ("utf-8-sig", "gb18030"):  # 先 UTF-8，再 GBK/国标（中文 .txt 常见编码）
+        try:
+            raw = data.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    if raw is None:
+        raw = data.decode("utf-8", errors="replace")
     blocks = []
     prose = []
     code = []
@@ -488,11 +510,45 @@ def format_compare(before, after, top):
     return "\n".join(lines)
 
 
+def format_report(before, after):
+    """生成 Markdown 降前/降后对比报告：总览 + 逐段评分 + 改动段原文/改后对照。"""
+    bd, ad = before["document"], after["document"]
+    bp, ap_ = before["paragraphs"], after["paragraphs"]
+    n = min(len(bp), len(ap_))
+    changed = [i for i in range(n) if bp[i]["text"] != ap_[i]["text"]]
+    L = ["# 降 AI 对比报告\n",
+         "> 由 academic-humanizer-zh / score.py 生成。表层分为脚本计算；语义层（节奏/推理/口吻）需人工判读。\n",
+         "## 一、总览\n",
+         f"- **文档表层 AI 率：降前 {bd['ai_rate_surface']}%（{bd['level']}）"
+         f" → 降后 {ad['ai_rate_surface']}%（{ad['level']}）**",
+         f"- 高风险段占比：{bd['high_risk_ratio'] * 100:.0f}% → {ad['high_risk_ratio'] * 100:.0f}%",
+         f"- 参与打分 {bd['n_scored']} 段；本次改动 {len(changed)} 段"]
+    if len(bp) != len(ap_):
+        L.append(f"- ⚠ 两版段落数不一致（降前 {len(bp)} / 降后 {len(ap_)}），按顺序对齐前 {n} 段")
+    L.append("\n## 二、逐段评分对比（仅列改动段）\n")
+    L.append("> 「变化」列：表层未变 = 这段改的是节奏 / 措辞等语义层，不在 S1–S7 扫描范围内。\n")
+    L.append("| 段 | 降前 | 降后 | 变化 | 该段开头 |")
+    L.append("|---|---|---|---|---|")
+    for i in changed:
+        bs, as_ = bp[i]["surface_score"], ap_[i]["surface_score"]
+        diff = bs - as_
+        mark = f"↓{diff}" if diff > 0 else ("节奏改写·表层未变" if diff == 0 else f"⚠ 升{-diff}")
+        L.append(f"| 第{i + 1}段 | {bs}% | {as_}% | {mark} | {ap_[i]['text'][:14]}… |")
+    L.append("\n## 三、全文逐段对照（原文 → 改后）\n")
+    for i in changed:
+        L.append(f"### 第 {i + 1} 段　{bp[i]['surface_score']}% → {ap_[i]['surface_score']}%\n")
+        L.append(f"**原文：**{bp[i]['text']}\n")
+        L.append(f"**改后：**{ap_[i]['text']}\n")
+        L.append("---\n")
+    return "\n".join(L)
+
+
 def main():
     ap = argparse.ArgumentParser(description="中文学术文本 AI 表层痕迹打分器")
     ap.add_argument("input", help="输入文件 .txt / .md / .docx")
     ap.add_argument("--json", dest="json_out", help="写出完整 JSON 到该路径")
     ap.add_argument("--compare", dest="compare", help="对比基准 JSON（降前结果）；给出后打印降前/降后对比表")
+    ap.add_argument("--report", dest="report", help="与 --compare 配合，把降前/降后逐段对照写成 Markdown 报告文件")
     ap.add_argument("--min-len", type=int, default=15, help="低于该字数的段落不打分（默认 15）")
     ap.add_argument("--top", type=int, default=8, help="摘要/对比里展示的段落数量（默认 8）")
     ap.add_argument("--quiet", action="store_true", help="不打印摘要（仅写 JSON）")
@@ -516,10 +572,17 @@ def main():
         Path(args.json_out).write_text(
             json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
 
+    if args.report:
+        if not before:
+            sys.exit("--report 需要同时指定 --compare <降前.json>")
+        Path(args.report).write_text(format_report(before, result), encoding="utf-8")
+
     if not args.quiet:
         print(format_compare(before, result, args.top) if before else format_summary(result, args.top))
         if args.json_out:
             print(f"\n完整结果已写入：{args.json_out}")
+        if args.report:
+            print(f"对比报告已写入：{args.report}")
 
 
 if __name__ == "__main__":

@@ -39,7 +39,7 @@ The score is an **explainable AI-trace risk rate**, not any commercial detector'
 ## Tooling
 
 - **`scripts/score.py`** — deterministic surface scorer. Reads `.txt / .md / .docx`, skips references/TOC/tables/formulas/captions/headings and fenced code blocks (```/~~~), scores patterns S1–S7, prints a summary and (with `--json`) writes full results.
-  - Run: `python scripts/score.py <输入文件> --json <输出.json>`；改写后用 `--compare 降前.json` 直接打印降前/降后对比表。
+  - Run: `python scripts/score.py <输入文件> --json <输出.json>`；改写后用 `--compare 降前.json` 打印对比，再加 `--report <对比报告.md>` 直接生成降前/降后对照文件（总览 + 逐段评分 + 改动段原文/改后对照）。
   - JSON fields: `document.ai_rate_surface` (字数加权), `document.high_risk_ratio`, `document.skipped_breakdown`; per-paragraph `index / char_count / surface_score / level / needs_semantic_review / hits[] / text`. Each hit carries `code / name / points / match / offset`.
 - **`reference/rubric.md`** — the single source of truth: weights, the six surface items S1–S6, the three semantic items C1–C3, and the four risk bands. Read it before scoring so your semantic judgments match the rubric.
 
@@ -73,8 +73,8 @@ Always state the reason when adding semantic points; never give a bare number. B
 3. Produce the **检测报告** (format below): document AI率 + high-risk ratio + per-paragraph table + the worst sentences highlighted.
 4. **降AI**: rewrite high-risk paragraphs (中高/高 first), using the Rewrite Methods. Preserve data/citations/methods; keep methods/results numerically intact; do not touch the blocks the script skipped.
 5. Export a **new file** — never overwrite the original.
-6. Re-run `score.py` on the new file（用 `--compare 降前.json` 直接打印降前/降后对比表）.
-7. Produce the **降AI报告**: before/after document AI率, per-section drop, preserved content, residual risk.
+6. Re-run `python scripts/score.py <新文件> --compare 降前.json --report <对比报告.md>` — this prints the before/after table **and writes a comparison report file** (总览 + 逐段评分 + 改动段原文/改后对照).
+7. Deliver **two files** — the rewritten document and the comparison report — then summarize: before/after document AI率, preserved content (citations/data/methods), residual risk.
 
 > Do not game the score by only deleting trigger words. A lower number must come from real structural and reasoning changes; otherwise the text reads as a new anti-AI template. The Final Self-Check enforces this.
 
@@ -413,6 +413,8 @@ For a full-document **降AI报告**:
 - 剩余风险：……
 ```
 
+> 这份 **降AI报告由 `score.py --compare 降前.json --report <文件.md>` 直接落地成文件**（含总览、逐段评分、改动段「原文 ↔ 改后」对照）；其中"主要处理 / 受保护内容 / 剩余风险"等判断由你补充。
+
 ## Examples
 
 ### Literature Review
@@ -467,3 +469,4 @@ Before returning revised text, check:
 - Is the paragraph still academic, not casual chat?
 - Did the re-scored AI率 actually drop — **and is the drop from real structural/reasoning changes, not just deleted trigger words**?
 - After rewriting, re-run `score.py`; if a paragraph is still 中高/高, revise it again rather than reporting it as done.
+- **改写后没有任何一段分数比改写前更高**：若某段 AI率不降反升（哪怕仍在「低」档），说明改写顺手引入了新痕迹——常见于写出「已有研究」「研究表明」「不是…而是…」这类被自己规则盯上的词。回改那一段，不要交付一个"越降越高"的结果。
